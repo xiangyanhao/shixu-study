@@ -1,0 +1,55 @@
+// End-to-end checks in an isolated headless Chrome profile, using built-in CDP.
+import {spawn} from 'node:child_process';
+import {createServer} from 'node:http';
+import {mkdir,readFile,writeFile} from 'node:fs/promises';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {setTimeout as delay} from 'node:timers/promises';
+import {createAppServer} from '../server.mjs';
+const qa=path.resolve('.qa');await mkdir(qa,{recursive:true});
+const app=createAppServer();await new Promise(r=>app.listen(0,'127.0.0.1',r));const appURL=`http://127.0.0.1:${app.address().port}`;
+let modelRequests=[];
+const mock=createServer(async(req,res)=>{let raw='';for await(const c of req)raw+=c;const body=JSON.parse(raw);assert.ok(body.messages[0].content.includes('组卷'));assert.equal(req.headers.authorization,'Bearer qa-test-key');const payload=JSON.parse(body.messages.at(-1).content);modelRequests.push(payload);
+ let content='连接成功';
+ if(payload.task==='generate_questions')content=JSON.stringify({questions:payload.slots.map(s=>({subject:s.subject,type:s.type,points:s.points,module:s.module,difficulty:s.difficulty==='mixed'?'medium':s.difficulty,stem:`请分析${s.module}相关教学场景及合理做法，第${s.index}题（接口验证）。`,...(s.type==='choice'?{options:['注重理解与实践','只做机械训练','取消所有评价','忽视学生差异'],answer:0}:{answer:'参考答案：依据目标设置学习活动，收集证据并改进教学。',rubric:[{point:'依据学习目标进行分析',score:s.points}]}),explanation:'应依据学习目标与学生实际设计活动，重视实践与评价证据。',sourceId:payload.references[0].id,quote:payload.references[0].text.slice(0,30)}))});
+ if(payload.task==='grade_answers')content=JSON.stringify({grades:payload.questions.map(q=>({id:q.id,score:q.studentAnswer?3:0,feedback:'AI 估分测试：请补充依据与案例。'}))});
+ if(payload.task==='answer_question')content='课标强调信息意识、计算思维、数字化学习与创新、信息社会责任。[curriculum-7] 请用课堂活动解释计算思维。';
+ if(payload.task==='analyze_mastery')content='已提交记录样本较少，优先复习错题，再开展模块自测。';
+ res.setHeader('Content-Type','application/json');res.end(JSON.stringify({choices:[{message:{content}}]}));
+});await new Promise(r=>mock.listen(0,'127.0.0.1',r));const modelURL=`http://127.0.0.1:${mock.address().port}/v1`;
+const profile=path.join(qa,`chrome-${Date.now()}`);await mkdir(profile);
+const chrome=spawn('C:/Program Files/Google/Chrome Dev/Application/chrome.exe',['--headless=new','--disable-gpu','--in-process-gpu','--no-sandbox','--remote-debugging-port=0',`--user-data-dir=${profile}`,'--no-first-run','--no-default-browser-check','--disable-extensions','about:blank'],{windowsHide:true,stdio:'ignore'});
+let ws,seq=0;const pending=new Map(),errors=[];
+try{
+ let port;for(let i=0;i<100;i++){try{port=Number((await readFile(path.join(profile,'DevToolsActivePort'),'utf8')).split('\n')[0]);break;}catch{await delay(100);}}
+ assert.ok(port,'Chrome remote debugging did not start');
+ const pages=await (await fetch(`http://127.0.0.1:${port}/json`)).json();const page=pages.find(p=>p.type==='page');
+ console.log('Chrome ready');ws=new WebSocket(page.webSocketDebuggerUrl);await new Promise((resolve,reject)=>{ws.onopen=resolve;ws.onerror=reject;});
+ ws.onmessage=e=>{const data=JSON.parse(e.data);if(data.method==='Runtime.exceptionThrown')errors.push(data.params.exceptionDetails.text+' '+JSON.stringify(data.params.exceptionDetails.exception));if(data.id){const p=pending.get(data.id);pending.delete(data.id);if(data.error)p.reject(Error(data.error.message));else p.resolve(data.result);}};
+ const cdp=(method,params={})=>new Promise((resolve,reject)=>{const id=++seq;const timer=setTimeout(()=>{pending.delete(id);reject(Error('CDP timeout: '+method));},15000);pending.set(id,{resolve:v=>{clearTimeout(timer);resolve(v);},reject:e=>{clearTimeout(timer);reject(e);}});ws.send(JSON.stringify({id,method,params}));});
+ const evaluate=async(expression)=>{const r=await cdp('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw Error(JSON.stringify(r.exceptionDetails));return r.result.value;};
+ const click=selector=>evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+ const waitFor=async expression=>{for(let i=0;i<150;i++){if(await evaluate(expression))return;await delay(100);}throw Error('Timed out: '+expression);};
+ const select=async(selector,value)=>{await evaluate(`{const el=document.querySelector(${JSON.stringify(selector)});el.value=${JSON.stringify(String(value))};el.dispatchEvent(new Event('change',{bubbles:true}));}`);};
+ await cdp('Runtime.enable');await cdp('Page.enable');await cdp('Emulation.setDeviceMetricsOverride',{width:1440,height:1050,deviceScaleFactor:1,mobile:false});await cdp('Page.navigate',{url:appURL});
+ await waitFor("document.querySelector('.hero')");console.log('Dashboard ready');assert.equal(await evaluate("document.querySelectorAll('.stat').length"),4);
+ await writeFile(path.join(qa,'dashboard.png'),Buffer.from((await cdp('Page.captureScreenshot',{format:'png',captureBeyondViewport:true})).data,'base64'));
+ assert.equal(await evaluate('document.documentElement.scrollWidth>innerWidth'),false);
+ await click('[data-nav="library"]');await click('[data-action="library-filter"][data-subject="5"]');assert.equal(await evaluate("document.querySelectorAll('.doc-card').length"),12);
+ await click('.doc-card');assert.ok(await evaluate("document.querySelector('a[href*=\"curriculum-2025.pdf\"]').href.includes('#page=')"));await click('[data-action="mark-read"]');
+ await click('[data-nav="quick"]');await click('#build-form button[type="submit"]');await waitFor("document.querySelector('.question-stem')");
+ await click('[data-action="answer"][data-value="0"]');await click('[data-action="reveal"]');assert.ok(await evaluate("document.querySelector('.review-box')"));
+ const deadline=await evaluate("JSON.parse(localStorage.getItem('shixu-study-v1')).session.deadline");await cdp('Page.reload');await waitFor("document.querySelector('.hero')");await click('[data-action="resume"]');assert.equal(await evaluate("JSON.parse(localStorage.getItem('shixu-study-v1')).session.deadline"),deadline);
+ await click('[data-action="finish"]');await click('#confirm-yes');await waitFor("document.querySelector('.score-hero')");assert.equal(await evaluate("JSON.parse(localStorage.getItem('shixu-study-v1')).history.length"),1);
+ await click('[data-nav="settings"]');await evaluate(`document.querySelector('#model-url').value=${JSON.stringify(modelURL)};document.querySelector('#model-key').value='qa-test-key';document.querySelector('#model-name').value='qa-model';document.querySelector('[name="proxy"]').checked=true;document.querySelector('#settings-form').requestSubmit();`);
+ await click('[data-action="test-model"]');await waitFor("document.querySelector('#settings-status').textContent.includes('连接成功')");
+ assert.equal(await evaluate("localStorage.getItem('shixu-model').includes('qa-test-key')"),false);assert.equal(await evaluate("sessionStorage.getItem('shixu-session-key')"),null);
+ await click('[data-nav="builder"]');await click('#build-form button[type="submit"]');await waitFor("document.querySelector('.question-stem')");assert.equal(await evaluate("JSON.parse(localStorage.getItem('shixu-study-v1')).session.questions.length"),21);
+ await click('[data-action="answer"][data-value="0"]');await click('[data-action="jump"][data-value="15"]');await evaluate("document.querySelector('#subjective-answer').value='我依据学习目标设计教学活动并收集评价证据。';document.querySelector('#subjective-answer').dispatchEvent(new Event('input',{bubbles:true}));");await click('[data-action="finish"]');await click('#confirm-yes');await waitFor("document.querySelector('.score-hero')");
+ await click('[data-action="grade"]');await waitFor("document.body.textContent.includes('AI 估分测试')");assert.ok(modelRequests.some(p=>p.task==='grade_answers'));
+ await click('[data-nav="tutor"]');await evaluate("document.querySelector('#chat-input').value='课标如何理解计算思维？';document.querySelector('#chat-form').requestSubmit();");await waitFor("document.querySelectorAll('.message').length===2");const last=modelRequests.at(-1);assert.equal(last.task,'answer_question');assert.equal(last.references[0].sourceType,'curriculum');
+ await click('[data-nav="analysis"]');await click('[data-action="ai-analysis"]');await waitFor("document.body.textContent.includes('已提交记录样本较少')");
+ await click('[data-nav="home"]');await cdp('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await delay(300);assert.equal(await evaluate('document.documentElement.scrollWidth>innerWidth'),false);await writeFile(path.join(qa,'mobile.png'),Buffer.from((await cdp('Page.captureScreenshot',{format:'png',captureBeyondViewport:true})).data,'base64'));
+ assert.deepEqual(errors,[]);console.log(JSON.stringify({result:'passed',checks:['dashboard','mobile layout','curriculum filter/PDF/read','quick test/reveal','refresh/resume deadline','submit report','model connection/proxy','no persisted key','AI full paper 21 questions','subjective grading','curriculum-priority tutoring','mastery analysis'],modelRequests:modelRequests.length,screenshots:['.qa/dashboard.png','.qa/mobile.png']}));
+ await cdp('Browser.close').catch(()=>{});
+}finally{ws?.close();chrome.kill();app.closeAllConnections();mock.closeAllConnections();await new Promise(r=>app.close(r));await new Promise(r=>mock.close(r));}
