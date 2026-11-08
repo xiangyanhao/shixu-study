@@ -1,0 +1,17 @@
+import {formatModelOutput,renderMarkdown} from './markdown.js';
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+export const elapsedText=ms=>ms<1000?'不到 1 秒':`${Math.floor(ms/1000)} 秒`;
+export function requestProgress(message){
+ const now=Date.now(),phase=message.phase||'preparing',elapsed=now-message.started;
+ const stages={preparing:['正在准备请求','已匹配相关资料，正在准备模型连接。',0],connecting:['正在连接模型服务','尚未收到服务确认；连接成功后会更新状态。',0],connected:['服务已响应，等待模型输出','服务连接已确认，尚未收到回答正文。',1],buffered:['服务已响应，等待完整回答','该服务未使用流式返回，完整回答到达后会一次显示。',1],reasoning:['模型正在思考','已收到服务的推理信号，尚未收到回答正文。',1],receiving:['正在接收回答','正文正在陆续到达，你可以边看边等待。',2]};
+ let [title,detail,current]=stages[phase]||stages.connecting;
+ if(phase==='connecting'&&elapsed>12000)detail='尚未收到服务确认，可能正在连接、排队或等待服务缓冲；暂时无法判断模型是否已开始生成。';
+ if(message.lastActivity&&now-message.lastActivity>15000&&current>0)detail+=` 已有 ${Math.floor((now-message.lastActivity)/1000)} 秒没有新内容，可继续等待或停止。`;
+ return `<div class="request-progress" id="request-${esc(message.id)}" role="status" aria-live="polite"><div class="request-heading"><span class="spinner"></span><strong>${title}</strong><span class="request-elapsed">${elapsedText(elapsed)}</span></div><div class="request-steps">${['连接服务','等待模型','接收正文'].map((label,i)=>`<span class="${i<current?'done':i===current?'current':''}">${i<current?'✓':i+1} ${label}</span>`).join('<i>—</i>')}</div><p>${detail}</p></div>`;
+}
+export function renderChatMessage(message,index){
+ if(message.role==='user')return `<article class="message user" data-message-id="${esc(message.id)}"><div class="message-label">我的问题</div><div>${esc(message.content)}</div></article>`;
+ const pending=message.state==='pending',failed=message.state==='error',stopped=message.state==='stopped';
+ const references=[...new Map((message.references||[]).map(d=>[d.id,d])).values()];
+ return `<article class="message assistant ${pending?'is-generating':''}" data-message-id="${esc(message.id)}" aria-busy="${pending}"><div class="message-label">师序 · 学习助教${pending?'<span class="answer-status">生成中</span>':''}</div>${message.content?`<div class="markdown answer-body">${renderMarkdown(formatModelOutput(message.content,{partial:pending}),{references,codeTools:true,headingPrefix:'reply-'+message.id})}</div>`:''}${pending?requestProgress(message):''}${failed||stopped?`<div class="answer-alert ${stopped?'stopped':''}" role="${failed?'alert':'status'}"><strong>${stopped?'已停止生成':message.errorCode==='http'?'服务拒绝了请求':message.errorCode?.includes('timeout')?'请求超时':message.content?'回答接收中断':'暂未获得回答'}</strong><p>${esc(message.error)}</p></div>`:''}${!pending&&references.length&&message.content?`<details class="answer-sources"><summary>本次检索资料 · ${references.length} 份</summary><div>${references.map(d=>`<button type="button" data-action="read" data-id="${esc(d.id)}">${esc(d.title)} <span>[${esc(d.id)}]</span></button>`).join('')}</div></details>`:''}${!pending?`<div class="answer-toolbar"><span>${stopped?'已停止':failed?'未完成':'回答完成'}${message.ended?` · ${elapsedText(message.ended-message.started)}`:''}${message.content?` · ${message.content.length} 字符`:''}</span><div>${message.content?`<button type="button" data-action="copy-answer" data-value="${index}">复制回答</button>`:''}${failed||stopped?`<button type="button" data-action="retry-answer" data-value="${index}">重新生成</button>`:''}</div></div>`:''}</article>`;
+}

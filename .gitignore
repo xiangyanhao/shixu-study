@@ -1,6 +1,78 @@
+# Dependencies
 node_modules/
-.env*
-*.log
+
+# Environment files and local credentials
+.env
+.env.*
+!.env.example
+!.env.sample
+**/.local-secrets/
+*.key
+*.pem
+*.p12
+*.pfx
+.npmrc
+.pypirc
+
+# User-generated learning data. Keep only the directory documentation in Git.
+data/**
+!data/README.md
+
+# Local AI/development tool state and hosting metadata
+/.openai/
+/.codex/
+/.agents/
+
+# Generated portable packages and archives
+releases/
+*.tar
+*.tar.gz
+*.tgz
+
+# Test, coverage, and browser artifacts
+.qa/
+coverage/
+.coverage
+htmlcov/
+.nyc_output/
 playwright-report/
 test-results/
-.qa/
+blob-report/
+
+# Runtime logs and temporary files
+*.log
+*.pid
+*.seed
+*.tmp
+*.temp
+*.pending
+*.bak
+*.orig
+*.rej
+*.swp
+*.swo
+
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+.venv/
+venv/
+
+# Package-manager and build-tool caches
+.npm/
+.pnpm-store/
+.yarn/
+.parcel-cache/
+.vite/
+
+# Editors and operating systems
+.vscode/
+.idea/
+*.code-workspace
+.DS_Store
+Thumbs.db
+Desktop.ini

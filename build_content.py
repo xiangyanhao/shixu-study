@@ -1,14 +1,23 @@
-"""Bundle the supplied Markdown verbatim. Run from this directory, no dependencies."""
+"""Rebuild from project-owned sources; PDF re-extraction is optional."""
 from pathlib import Path
-import json, re, shutil
+import argparse, json, re, shutil
 ROOT = Path(__file__).resolve().parent
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--source-root', type=Path, default=ROOT/'sources'/'materials')
+parser.add_argument('--refresh-curriculum', action='store_true', help='Re-extract the bundled PDF (requires PyMuPDF)')
+parser.add_argument('--curriculum', type=Path, default=ROOT/'dist'/'assets'/'curriculum-2025.pdf')
+args = parser.parse_args()
+source_root = args.source_root.resolve()
+notes = source_root / '高中教资科目一二备考资料'
+book = source_root / '高中信息科技教资_科目三+面试_微型教材.md'
+if not notes.is_dir() or not book.is_file():
+    parser.error('Source materials missing. Keep sources/materials with the project or provide --source-root.')
 docs = []
-for path in sorted((ROOT.parent / '高中教资科目一二备考资料').rglob('*.md')):
-    rel = str(path.relative_to(ROOT.parent)).replace('\\', '/')
+for path in sorted(notes.rglob('*.md')):
+    rel = path.relative_to(source_root).as_posix()
     text = path.read_text(encoding='utf-8-sig')
     subject = 1 if '科目一-' in rel else 2 if '科目二-' in rel else 0
     docs.append(dict(id=f'd{len(docs)+1}', subject=subject, title=path.stem, path=rel, text=text))
-book = ROOT.parent / '高中信息科技教资_科目三+面试_微型教材.md'
 text = book.read_text(encoding='utf-8-sig')
 parts = re.split(r'(?m)(?=^## (?:第[一二三四五六七八九十]+章|写在前面|最后))', text)
 for part in parts:
@@ -18,10 +27,15 @@ for part in parts:
     docs.append(dict(id=f'd{len(docs)+1}',subject=4 if '第八章' in title else 3,title=title,path=book.name,text=part.strip()))
 # Supplement: retain exact PDF pages and the uploaded version label.
 # A checked-in extraction lets deployments build without PDF dependencies.
-standard = ROOT.parent / '信息技术最新版课程标准.pdf'
+standard = args.curriculum.resolve()
 cache = ROOT / 'sources' / 'curriculum.json'
-if standard.exists():
-    import pymupdf
+if args.refresh_curriculum or not cache.exists():
+    if not standard.is_file():
+        parser.error('Curriculum PDF missing; restore dist/assets/curriculum-2025.pdf or specify --curriculum.')
+    try:
+        import pymupdf
+    except ImportError:
+        parser.error('PDF extraction requires PyMuPDF. Install it with: python -m pip install pymupdf')
     pdf = pymupdf.open(standard)
     sections = [('课程性质',4,4),('课程理念',5,6),('课程目标与核心素养',7,10),
                 ('课程结构与学分',11,13),('课程内容·必修',14,20),
@@ -38,13 +52,15 @@ if standard.exists():
             raw=re.sub(r'(?<=[\u4e00-\u9fff，、；：])\n(?=[\u4e00-\u9fff])','',raw)
             pages.append(f'### PDF 第 {p} 页（正文第 {p-3} 页）\n\n'+raw)
         extracted.append(dict(id=f'curriculum-{start}',subject=3,title=f'课标补充｜{title}',
-            path=standard.name,text='## '+title+'\n\n'+'\n\n'.join(pages),
+            path='信息技术最新版课程标准.pdf',text='## '+title+'\n\n'+'\n\n'.join(pages),
             sourceType='curriculum',priority=10,version='2017年版2025年修订·日常修订版',
             pdfUrl=f'./assets/curriculum-2025.pdf#page={start}',startPage=start,endPage=end))
     cache.parent.mkdir(exist_ok=True)
     cache.write_text(json.dumps(extracted,ensure_ascii=False),encoding='utf-8')
     (ROOT/'dist'/'assets').mkdir(exist_ok=True)
-    shutil.copyfile(standard,ROOT/'dist'/'assets'/'curriculum-2025.pdf')
+    target = ROOT/'dist'/'assets'/'curriculum-2025.pdf'
+    if standard != target.resolve():
+        shutil.copyfile(standard,target)
 if cache.exists():
     docs.extend(json.loads(cache.read_text(encoding='utf-8')))
 (ROOT / 'dist' / 'content.json').write_text(json.dumps(docs,ensure_ascii=False),encoding='utf-8')

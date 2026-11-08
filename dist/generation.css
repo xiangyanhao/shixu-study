@@ -1,0 +1,48 @@
+.generation-timer {
+  margin: 10px 0 2px;
+  color: #5f7555;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.generation-timer.urgent {
+  color: var(--orange);
+}
+
+.model-output {
+  margin-top: 14px;
+  color: #425147;
+}
+
+.model-output h2,
+.model-output h3,
+.model-output h4 {
+  margin-top: 20px;
+  margin-bottom: 9px;
+}
+
+.model-output ul,
+.model-output ol {
+  margin: 9px 0;
+}
+
+.model-report .model-output {
+  padding-top: 6px;
+}
+
+.model-feedback {
+  margin-top: 14px;
+  padding: 15px 17px;
+  border: 1px solid #dfe8d5;
+  border-radius: 9px;
+  background: #f3f6ee;
+}
+
+.model-feedback > strong {
+  color: #577044;
+  font-size: 12px;
+}
+
+.model-feedback .model-output {
+  margin-top: 7px;
+}
