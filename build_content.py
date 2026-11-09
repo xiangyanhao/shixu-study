@@ -37,6 +37,61 @@ if args.refresh_curriculum or not cache.exists():
     except ImportError:
         parser.error('PDF extraction requires PyMuPDF. Install it with: python -m pip install pymupdf')
     pdf = pymupdf.open(standard)
+    def display_page(page, number):
+        """Recover visible paragraphs and headings from PDF geometry; keep raw text for citations."""
+        tables = list(page.find_tables().tables)
+        blocks = [b for b in page.get_text('dict')['blocks'] if 'lines' in b]
+        items = []
+        for block in blocks:
+            x, y, right, bottom = block['bbox']
+            if y >= 665 or any(y >= t.bbox[1]-2 and bottom <= t.bbox[3]+2
+                               and x >= t.bbox[0]-2 and right <= t.bbox[2]+2 for t in tables):
+                continue
+            spans = [span for line in block['lines'] for span in line['spans']]
+            value = ''.join(span['text'] for span in spans).strip()
+            if not value or value == '续表' or value.startswith('│') or value.startswith('普通高中信息科技课程标准（'):
+                continue
+            size = max(span['size'] for span in spans)
+            title_font = any('FZXBS' in span['font'] or 'FZDBS' in span['font']
+                             or 'TimesNewRomanPS-Bold' in span['font'] for span in spans)
+            is_title = size >= 13 or (title_font and len(value) <= 48)
+            if re.fullmatch(r'【[^】]+】', value): is_title = True
+            items.append((y, 'heading' if is_title else 'body', value, x))
+        for table in tables:
+            rows = table.extract()
+            table_lines = ['**本页表格（排版和合并单元格请以 PDF 原页为准）**']
+            for row in rows:
+                cells = [re.sub(r'\s+', '', cell or '') for cell in row]
+                if not any(cells): continue
+                if cells[0] in ('水平','类别'):
+                    table_lines.append('**'+' · '.join(filter(None, cells))+'**')
+                else:
+                    if cells[0]: table_lines.append('#### '+cells[0])
+                    for cell in filter(None, cells[1:]):
+                        entries = [item for item in re.split(r'(?=模块\d+\s*：|\d+-\d+\.\s*|（\d+）)', cell) if item]
+                        table_lines.extend('- '+item for item in entries)
+            items.append((table.bbox[1], 'table', '\n'.join(table_lines), 0))
+        items.sort(key=lambda item:item[0])
+        output = [f'### PDF 第 {number} 页（正文第 {number-3} 页）']
+        paragraph = ''
+        previous_y = None
+        previous_x = None
+        def flush():
+            nonlocal paragraph
+            if paragraph.strip(): output.append(paragraph.strip()); paragraph = ''
+        for y, kind, value, x in items:
+            if kind != 'body':
+                flush()
+                if kind == 'table': output.append(value)
+                else: output.append(('### ' if re.match(r'^[一二三四五六七八九十]+、|^附录$', value) else '#### ')+value)
+            else:
+                if (paragraph and previous_y is not None and
+                    (y-previous_y > 27 or (x-(previous_x or 0)>15 and paragraph.endswith(('。','！','？','；'))))):
+                    flush()
+                paragraph += value
+            previous_y, previous_x = y, x
+        flush()
+        return '\n\n'.join(output)
     sections = [('课程性质',4,4),('课程理念',5,6),('课程目标与核心素养',7,10),
                 ('课程结构与学分',11,13),('课程内容·必修',14,20),
                 ('课程内容·选择性必修',20,35),('课程内容·选修',35,39),
@@ -45,14 +100,17 @@ if args.refresh_curriculum or not cache.exists():
                 ('附录·核心素养水平划分',59,63)]
     extracted=[]
     for title,start,end in sections:
-        pages=[]
+        pages=[];display_pages=[]
         for p in range(start,end+1):
-            raw=pdf[p-1].get_text().strip()
+            page=pdf[p-1]
+            raw=page.get_text().strip()
             # Join wrapped Chinese paragraphs while keeping all source words.
             raw=re.sub(r'(?<=[\u4e00-\u9fff，、；：])\n(?=[\u4e00-\u9fff])','',raw)
             pages.append(f'### PDF 第 {p} 页（正文第 {p-3} 页）\n\n'+raw)
+            display_pages.append(display_page(page,p))
         extracted.append(dict(id=f'curriculum-{start}',subject=3,title=f'课标补充｜{title}',
             path='信息技术最新版课程标准.pdf',text='## '+title+'\n\n'+'\n\n'.join(pages),
+            displayText='## '+title+'\n\n'+'\n\n'.join(display_pages),
             sourceType='curriculum',priority=10,version='2017年版2025年修订·日常修订版',
             pdfUrl=f'./assets/curriculum-2025.pdf#page={start}',startPage=start,endPage=end))
     cache.parent.mkdir(exist_ok=True)

@@ -1,0 +1,18 @@
+/* Keep the larger type confined to the knowledge-library reader. */
+.reader .markdown{font-size:15px;line-height:2.05}
+.reader .markdown h1{font-size:28px}
+.reader .markdown h2{font-size:24px}
+.reader .markdown h3{font-size:20px}
+.reader .markdown h4{font-size:17px}
+.reader .markdown table{font-size:13px;line-height:1.8}
+.toc h3{font-size:14px}
+.toc a{font-size:12px}
+
+@media(max-width:680px){
+  .reader .markdown{font-size:14px}
+  .reader .markdown h1{font-size:25px}
+  .reader .markdown h2{font-size:21px}
+  .reader .markdown h3{font-size:18px}
+  .reader .markdown h4{font-size:16px}
+  .reader .markdown table{font-size:12px}
+}

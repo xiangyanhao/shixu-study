@@ -38,5 +38,19 @@ test('评分拒绝超分、负分、重复ID、空白满分',()=>{const qs=[{id:
 test('兼容接口真实构造Bearer鉴权、model/messages，且禁用重定向',async()=>{let captured;const text=await requestModel({url:'https://example.com/v1',key:'test-key',model:'test-model'},[{role:'system',content:POLICY}],{transport:async(url,init)=>{captured={url,init};return new Response(JSON.stringify({choices:[{message:{content:'连接成功'}}]}),{status:200});}});assert.equal(text,'连接成功');assert.equal(captured.url,'https://example.com/v1/chat/completions');assert.equal(captured.init.headers.Authorization,'Bearer test-key');assert.equal(captured.init.redirect,'error');const body=JSON.parse(captured.init.body);assert.equal(body.model,'test-model');assert.equal(body.messages[0].content,POLICY);assert.equal(body.stream,false);});
 test('兼容接口处理HTTP错误、不暴露服务响应中的密钥',async()=>{await assert.rejects(requestModel({url:'https://x.com',key:'secret',model:'m'},[],{transport:async()=>new Response('secret',{status:401})}),e=>e.message.includes('401')&&!e.message.includes('secret'));await assert.rejects(requestModel({url:'https://x.com',key:'secret',model:'m'},[],{transport:async()=>new Response('{}')}),/未返回/);});
 test('补充课标12章节、页码与PDF文件可独立分发',async()=>{const docs=JSON.parse(await readFile(new URL('../dist/content.json',import.meta.url),'utf8'));const standard=docs.filter(d=>d.sourceType==='curriculum');assert.equal(standard.length,12);assert.ok(standard.every(d=>d.version.includes('2025')&&d.startPage>=4&&d.endPage<=63&&d.pdfUrl.includes('#page=')));assert.ok(standard.some(d=>d.text.includes('计算思维')));assert.ok((await readFile(new URL('../dist/assets/curriculum-2025.pdf',import.meta.url))).length>1000000);assert.ok(POLICY.includes('不能混同'));});
+test('课标阅读排版保留全部页码、分级标题并把表格分项展示',async()=>{
+ const docs=JSON.parse(await readFile(new URL('../dist/content.json',import.meta.url),'utf8'));
+ const standard=docs.filter(d=>d.sourceType==='curriculum');
+ for(const doc of standard){
+  assert.ok(doc.displayText?.startsWith('## '),doc.id);
+  for(let page=doc.startPage;page<=doc.endPage;page++)assert.ok(doc.displayText.includes(`### PDF 第 ${page} 页`),`${doc.id}: ${page}`);
+  assert.ok((doc.displayText.match(/^#{3,4} /gm)||[]).length>=2,doc.id);
+  assert.doesNotMatch(doc.displayText,/普通高中信息科技课程标准（2017年版2025年修订）/);
+ }
+ const goals=standard.find(d=>d.id==='curriculum-7').displayText;
+ for(const title of ['（一）学科核心素养内涵','1. 信息意识','2. 计算思维','3. 数字化学习与创新','4. 信息社会责任','（二）目标要求'])assert.ok(goals.includes(`#### ${title}`),title);
+ const levels=standard.find(d=>d.id==='curriculum-40').displayText;
+ assert.match(levels,/#### 水平1\n- 1-1\./);assert.match(levels,/#### 水平2\n- 2-1\./);
+});
 test('运行时职责明确公共科目情境不限于信息技术',()=>{assert.ok(POLICY.includes('科目一“综合素质”和科目二“教育知识与能力”是中学教师资格公共科目'));assert.ok(POLICY.includes('不得默认或全部设置为信息技术'));});
 test('本机服务提供页面与资料，并拒绝跨域代理',async()=>{const server=createAppServer();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));try{const origin=`http://127.0.0.1:${server.address().port}`;const response=await fetch(origin);assert.equal(response.status,200);assert.ok((await response.text()).includes('师序'));const data=await fetch(origin+'/content.json');assert.equal((await data.json()).filter(d=>d.sourceType==='curriculum').length,12);assert.equal((await fetch(origin+'/api/chat',{method:'POST',headers:{Origin:'https://attacker.example','Content-Type':'application/json'},body:'{}'})).status,403);assert.equal((await fetch(origin+'/missing.js')).status,404);}finally{await new Promise(resolve=>server.close(resolve));}});
