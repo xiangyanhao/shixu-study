@@ -5,11 +5,27 @@
 .reader .markdown h3{font-size:20px}
 .reader .markdown h4{font-size:17px}
 .reader .markdown table{font-size:13px;line-height:1.8}
+.reader .markdown .pdf-page-inline{display:inline;color:#658064;background:#f0f4e8;border-radius:4px;padding:1px 3px;margin:0 2px;font-size:10px;white-space:nowrap;scroll-margin-top:24px}
+.reader .markdown .source-details{margin:18px 0;padding:13px 17px;border:1px solid #dfe7d7;border-radius:9px;background:#f7faf3}
+.reader .markdown .source-details summary{cursor:pointer;color:var(--green);font-weight:600;line-height:1.8}
+.reader .markdown .source-details[open] summary{margin-bottom:12px}
+.reader .markdown .source-details>:last-child{margin-bottom:0}
+.reader .markdown .source-quiz-heading{margin-top:34px;padding-bottom:10px;border-bottom:1px solid #dce7d9}
+.reader .markdown .source-quiz-list{padding-left:30px;margin:20px 0 24px}
+.reader .markdown .source-quiz-list>li{margin:0 0 14px;padding:17px 19px 18px;border:1px solid #dce7dc;border-radius:11px;background:#fbfdf9;line-height:1.8;font-weight:600;color:#263b30;box-shadow:0 2px 7px #24442e08}
+.reader .markdown .source-quiz-list>li::marker{color:var(--green);font-weight:700}
+.reader .markdown .source-quiz-options{list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;margin:14px 0 0;padding:0;font-size:14px;font-weight:400}
+.reader .markdown .source-quiz-options>li{min-width:0;margin:0;padding:9px 11px;border:1px solid #e2e9dc;border-radius:7px;background:#fff;color:#405146;line-height:1.6;overflow-wrap:anywhere}
 .toc h3{font-size:14px}
 .toc a{font-size:12px}
 .toc .toc-link{padding-left:calc(8px + var(--toc-indent));padding-right:6px;border-left:2px solid #e5ebdd;overflow-wrap:anywhere}
 .toc .toc-link.toc-root{font-weight:650;color:#405c48;border-left-color:#93aa7e}
 .toc .toc-link:hover,.toc .toc-link:focus-visible{color:var(--green);background:#f2f6ec;border-left-color:var(--green)}
+.toc-pages{margin:0 0 15px;padding:10px 12px;border:1px solid #e4eadb;border-radius:8px;background:#f8faf4}
+.toc-pages summary{cursor:pointer;font-size:12px;color:#526b4d}
+.toc-pages>div{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.toc-pages a{display:inline-flex;align-items:center;justify-content:center;min-width:28px;padding:3px 6px;border:1px solid #dce5d2;border-radius:5px;background:#fff;font-size:11px;line-height:1.5}
+.toc-pages a:hover{border-color:#8eaa7f;color:var(--green)}
 
 @media(max-width:680px){
   .reader .markdown{font-size:14px}
@@ -18,4 +34,7 @@
   .reader .markdown h3{font-size:18px}
   .reader .markdown h4{font-size:16px}
   .reader .markdown table{font-size:12px}
+  .reader .markdown .source-quiz-list{padding-left:26px}
+  .reader .markdown .source-quiz-list>li{padding:15px}
+  .reader .markdown .source-quiz-options{grid-template-columns:1fr;font-size:13px}
 }

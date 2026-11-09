@@ -1,0 +1,40 @@
+.quick-exam .question{padding:clamp(22px,3vw,36px);border-color:#dfe7da}
+.quick-exam .question-meta{margin-bottom:15px;align-items:flex-start}
+.quick-exam .question-meta .actions{gap:9px}
+.quick-exam .quiz-question-count{font-size:13px;font-weight:650;color:var(--green);line-height:1.6}
+.quick-exam .quiz-progress{height:6px;margin:0 0 28px;background:#ecf1e7;border-radius:10px;overflow:hidden}
+.quick-exam .quiz-progress span{display:block;height:100%;background:#7f9e73;border-radius:10px}
+.quick-exam .question-stem{font-size:19px;line-height:1.85;font-weight:600;color:#243a30;margin-bottom:25px;overflow-wrap:anywhere}
+.quick-exam .options{gap:11px}
+.quick-exam .option{min-height:64px;padding:15px 17px;align-items:flex-start;gap:14px;background:#fff;border-color:#dce5da;font-size:15px;line-height:1.65;transition:background .15s,border-color .15s}
+.quick-exam .option:hover:not(:disabled){background:#f5f9f1;border-color:#91ab83}
+.quick-exam .option .letter{width:32px;height:32px;display:grid;place-items:center;margin-top:1px;border-radius:8px;font-size:13px;font-weight:650}
+.quick-exam .option.selected{background:#edf5e9;border-color:#4e8565}
+.quick-exam .option.correct{background:#e9f5e9;border-color:#6a9a77}
+.quick-exam .option.wrong{background:#fdf0ed;border-color:#ca9292}
+.quick-exam .option.wrong .letter{background:#b94c4c;border-color:#b94c4c;color:#fff}
+.quick-exam .option:disabled{opacity:1;cursor:default}
+.quick-exam .field textarea{min-height:180px;font-size:14px;line-height:1.8;resize:vertical}
+.quick-exam .quiz-reveal{display:flex;justify-content:flex-end;margin-top:20px}
+.quick-exam .quiz-reveal .btn{min-height:43px}
+.quick-exam .review-box{font-size:14px;line-height:1.85}
+.quick-exam .review-box .markdown{font-size:14px}
+.quick-exam .question-footer{border-top:1px solid var(--line);padding-top:20px;margin-top:28px}
+.quick-exam .answer-grid{gap:7px;margin:16px 0}
+.quick-exam .answer-dot{min-width:0;min-height:34px;font-size:12px}
+@media(max-width:680px){
+  .quick-exam{gap:14px}
+  .quick-exam .question{padding:20px}
+  .quick-exam .question-meta{gap:8px}
+  .quick-exam .quiz-progress{margin-bottom:20px}
+  .quick-exam .question-stem{font-size:17px;line-height:1.8;margin-bottom:20px}
+  .quick-exam .option{min-height:58px;padding:13px;gap:11px;font-size:14px}
+  .quick-exam .option .letter{width:29px;height:29px;font-size:12px}
+  .quick-exam .quiz-reveal .btn{width:100%}
+  .quick-exam .exam-aside .panel{padding:15px}
+  .quick-exam .exam-aside .timer{margin:4px 0;font-size:25px}
+  .quick-exam .exam-aside .rule{margin:9px 0}
+  .quick-exam .answer-grid{gap:4px;margin:10px 0}
+  .quick-exam .answer-dot{min-height:28px;font-size:10px}
+  .quick-exam .question-footer .btn{flex:1;white-space:normal}
+}

@@ -1,0 +1,11 @@
+.library-pagination{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:24px;flex-wrap:wrap}
+.library-page-buttons{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.library-page-number{min-width:36px;height:36px;padding:0 8px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--green);font-size:12px}
+.library-page-number:hover{background:#eef3e4}
+.library-page-number.active{background:var(--green);border-color:var(--green);color:#fff;font-weight:650}
+.library-pagination-top{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin:-3px 0 17px}
+.reader-pagination{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;margin:0 0 18px}
+.reader-pagination .btn:first-child{justify-self:start}
+.reader-pagination .btn:last-child{justify-self:end}
+.reader-layout+.reader-pagination{margin:20px 0 0}
+@media(max-width:680px){.library-pagination{justify-content:center}.library-pagination>.help{width:100%;text-align:center}.library-page-buttons{justify-content:center}.library-pagination-top{justify-content:center}.reader-pagination{display:flex;flex-wrap:wrap;justify-content:center}.reader-pagination>.help{order:-1;width:100%;text-align:center}}

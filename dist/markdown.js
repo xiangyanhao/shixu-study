@@ -1,3 +1,5 @@
+import {isSourceQuizHeading} from './source-quiz.js';
+
 const escapeHTML=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const MODEL_LABELS={answer:'回答',summary:'总结',analysis:'分析',overview:'概览',strengths:'掌握较好',weaknesses:'薄弱环节',weak_points:'薄弱环节',recommendations:'复习建议',suggestions:'建议',next_steps:'下一步行动',actions:'行动建议',evidence:'依据',feedback:'反馈',score:'得分',reason:'原因',subjects:'分科建议',subject:'科目',module:'模块',priority:'优先级',limitations:'分析边界',sample_size:'样本量',question:'问题',example:'示例',examples:'示例'};
 const modelLabel=key=>MODEL_LABELS[key]||String(key).replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[_-]+/g,' ').trim();
@@ -25,7 +27,7 @@ function cells(line){let raw=line.trim().replace(/^\|/,'').replace(/\|$/,''),val
 
 export function renderMarkdown(text,options={}){
  const lines=String(text??'').replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/,'').split(/\r?\n/);
- const fmt=t=>inline(t,options);let out='',code=false,language='',codeLines=[],table=[],headingIndex=0,quoted=[],paragraph=[],lists=[];
+ const fmt=t=>inline(t,options);let out='',code=false,language='',codeLines=[],table=[],headingIndex=0,quoted=[],paragraph=[],lists=[],detailsOpen=false,quizLevel=0;
  const closeParagraph=()=>{if(paragraph.length){out+=`<p>${paragraph.map(fmt).join('<br>')}</p>`;paragraph=[];}};
  const closeLists=(indent=-1)=>{while(lists.length&&lists.at(-1).indent>indent)out+=`</li></${lists.pop().type}>`;};
  const closeTable=()=>{
@@ -50,6 +52,18 @@ export function renderMarkdown(text,options={}){
  for(let i=0;i<lines.length;i++){
   const line=lines[i],fence=line.match(/^ {0,3}```\s*([^`]*)$/);
   if(code){if(fence){closeCode();code=false;}else codeLines.push(line);continue;}
+  if(options.allowDetails){
+   const opening=!detailsOpen&&line.trim().match(/^<details>(?:\s*<summary>(.*?)<\/summary>)?$/);
+   const following=opening?.[1]===undefined?lines[i+1]?.trim().match(/^<summary>(.*?)<\/summary>$/):null;
+   if(opening&&(opening[1]!==undefined||following)&&lines.slice(i+1).some(item=>item.trim()==='</details>')){
+    closeParagraph();closeLists();closeQuote();closeTable();
+    out+=`<details class="source-details"><summary>${fmt(opening[1]??following[1])}</summary>`;
+    detailsOpen=true;if(following)i++;continue;
+   }
+   if(detailsOpen&&line.trim()==='</details>'){
+    closeParagraph();closeLists();closeQuote();closeTable();out+='</details>';detailsOpen=false;continue;
+   }
+  }
   const quote=line.match(/^ {0,3}>[ \t]?(.*)$/);
   if(quote){closeParagraph();closeLists();closeTable();quoted.push(quote[1]);continue;}closeQuote();
   if(fence){closeParagraph();closeLists();closeTable();code=true;language=fence[1].trim().slice(0,40);continue;}
@@ -60,15 +74,15 @@ export function renderMarkdown(text,options={}){
    closeParagraph();const indent=item[1].replace(/\t/g,'  ').length,type=/\d/.test(item[2])?'ol':'ul';closeLists(indent);
    if(lists.length&&lists.at(-1).indent===indent&&lists.at(-1).type!==type)out+=`</li></${lists.pop().type}>`;
    if(lists.length&&lists.at(-1).indent===indent)out+='</li><li>';
-   else{out+=`<${type}${type==='ol'&&parseInt(item[2])!==1?` start="${parseInt(item[2])}"`:''}><li>`;lists.push({type,indent});}
+   else{const quizClass=options.sourceQuiz&&quizLevel&&!detailsOpen?(indent===0&&type==='ol'?' class="source-quiz-list"':indent>0&&type==='ul'?' class="source-quiz-options"':''):'';out+=`<${type}${type==='ol'&&parseInt(item[2])!==1?` start="${parseInt(item[2])}"`:''}${quizClass}><li>`;lists.push({type,indent});}
    out+=fmt(item[3]);continue;
   }
   if(lists.length&&/^\s+\S/.test(line)){out+='<br>'+fmt(line.trim());continue;}closeLists();
   const heading=line.match(/^(#{1,6})\s+(.+)/);
-  if(heading){closeParagraph();const level=Math.min(4,heading[1].length),id=`${options.headingPrefix||'heading'}-${++headingIndex}`,title=heading[2].replace(/\s*\{.*?\}/g,'');options.onHeading?.({id,level:heading[1].length,title});out+=`<h${level} id="${escapeHTML(id)}">${fmt(title)}</h${level}>`;continue;}
+  if(heading){closeParagraph();const rawLevel=heading[1].length,level=Math.min(4,rawLevel),id=`${options.headingPrefix||'heading'}-${++headingIndex}`,title=heading[2].replace(/\s*\{.*?\}/g,'');if(quizLevel&&rawLevel<=quizLevel)quizLevel=0;const quizHeading=options.sourceQuiz&&isSourceQuizHeading(title);if(quizHeading)quizLevel=rawLevel;options.onHeading?.({id,level:rawLevel,title});out+=`<h${level}${quizHeading?' class="source-quiz-heading"':''} id="${escapeHTML(id)}">${fmt(title)}</h${level}>`;continue;}
   if(/^\s*:::/.test(line))continue;
   if(/^\s*(?:---|\*\*\*|___)\s*$/.test(line)){closeParagraph();out+='<div class="rule"></div>';continue;}
   paragraph.push(line);
  }
- closeParagraph();closeLists();closeQuote();closeTable();if(code)closeCode();return out;
+ closeParagraph();closeLists();closeQuote();closeTable();if(code)closeCode();if(detailsOpen)out+='</details>';return out;
 }

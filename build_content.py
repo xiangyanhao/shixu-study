@@ -19,12 +19,20 @@ for path in sorted(notes.rglob('*.md')):
     subject = 1 if '科目一-' in rel else 2 if '科目二-' in rel else 0
     docs.append(dict(id=f'd{len(docs)+1}', subject=subject, title=path.stem, path=rel, text=text))
 text = book.read_text(encoding='utf-8-sig')
-parts = re.split(r'(?m)(?=^## (?:第[一二三四五六七八九十]+章|写在前面|最后))', text)
+parts = re.split(r'(?m)(?=^# 第[一二三四五六七八九十]+篇|^## (?:第[一二三四五六七八九十]+章|写在前面|最后))', text)
+pending_part = ''
 for part in parts:
+    if re.match(r'^# 第[一二三四五六七八九十]+篇', part):
+        pending_part = part.strip()
+        continue
     title = re.search(r'^## (.+)', part, re.M)
     if not title: continue
     title = re.sub(r'\s*\{.*?\}', '', title.group(1))
-    docs.append(dict(id=f'd{len(docs)+1}',subject=4 if '第八章' in title else 3,title=title,path=book.name,text=part.strip()))
+    chapter_text = part.strip()
+    if pending_part:
+        chapter_text = pending_part + '\n\n' + chapter_text
+        pending_part = ''
+    docs.append(dict(id=f'd{len(docs)+1}',subject=4 if '第八章' in title else 3,title=title,path=book.name,text=chapter_text))
 # Supplement: retain exact PDF pages and the uploaded version label.
 # A checked-in extraction lets deployments build without PDF dependencies.
 standard = args.curriculum.resolve()
@@ -98,16 +106,40 @@ if args.refresh_curriculum or not cache.exists():
                 ('学业质量',40,43),('教学与评价建议',44,49),
                 ('学业水平考试建议',49,53),('教材与课程实施建议',53,58),
                 ('附录·核心素养水平划分',59,63)]
+    # A shared PDF page can contain the end of one topic and the start of the next.
+    # Divide both reading text and citation text at the real subsection heading.
+    boundaries = {20:'（二）选择性必修课程',35:'（三）选修课程',
+                  49:'（二）学业水平考试建议',53:'（三）教材编写建议'}
+    page_text = {}
+    page_display = {}
+    for p in range(4,64):
+        page = pdf[p-1]
+        raw = page.get_text().strip()
+        page_text[p] = re.sub(r'(?<=[\u4e00-\u9fff，、；：])\n(?=[\u4e00-\u9fff])','',raw)
+        page_display[p] = display_page(page,p).split('\n\n',1)[1]
+    page_parts = {}
+    for p, heading in boundaries.items():
+        display_match = re.search(r'(?m)^#### '+re.escape(heading)+r'\s*$',page_display[p])
+        raw_matches = list(re.finditer(re.escape(heading),page_text[p]))
+        if not display_match or len(raw_matches)!=1:
+            raise ValueError(f'PDF page {p}: cannot uniquely locate subsection {heading}')
+        raw_match = raw_matches[0]
+        page_parts[p] = ((page_text[p][:raw_match.start()].strip(),page_text[p][raw_match.start():].strip()),
+                         (page_display[p][:display_match.start()].strip(),page_display[p][display_match.start():].strip()))
     extracted=[]
     for title,start,end in sections:
         pages=[];display_pages=[]
         for p in range(start,end+1):
-            page=pdf[p-1]
-            raw=page.get_text().strip()
-            # Join wrapped Chinese paragraphs while keeping all source words.
-            raw=re.sub(r'(?<=[\u4e00-\u9fff，、；：])\n(?=[\u4e00-\u9fff])','',raw)
-            pages.append(f'### PDF 第 {p} 页（正文第 {p-3} 页）\n\n'+raw)
-            display_pages.append(display_page(page,p))
+            raw,display=page_text[p],page_display[p]
+            if p in page_parts:
+                if p not in (start,end):
+                    raise ValueError(f'PDF page {p}: shared-page boundary is not at a topic edge')
+                side=1 if p==start else 0
+                raw=page_parts[p][0][side]
+                display=page_parts[p][1][side]
+            page_label=f'### PDF 第 {p} 页（正文第 {p-3} 页）\n\n'
+            pages.append(page_label+raw)
+            display_pages.append(page_label+display)
         extracted.append(dict(id=f'curriculum-{start}',subject=3,title=f'课标补充｜{title}',
             path='信息技术最新版课程标准.pdf',text='## '+title+'\n\n'+'\n\n'.join(pages),
             displayText='## '+title+'\n\n'+'\n\n'.join(display_pages),

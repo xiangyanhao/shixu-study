@@ -36,6 +36,28 @@ test('代码内不误解析Markdown，模型HTML和危险链接不能执行',()=
 });
 test('模型JSON转换为可读Markdown，不向用户展示裸对象',()=>{const formatted=formatModelOutput('{"summary":"样本较少","weaknesses":["学习心理","教学评价"],"next_steps":[{"action":"完成专项练习","priority":"高"}]}');assert.ok(formatted.includes('总结'));assert.ok(formatted.includes('薄弱环节'));assert.ok(formatted.includes('下一步行动'));assert.ok(!formatted.includes('{"'));const html=renderMarkdown(formatted);assert.ok(html.includes('<h2'));assert.ok(html.includes('<li>'));});
 test('未完成或损坏的模型JSON显示友好状态而非原文',()=>{assert.match(formatModelOutput('{"answer":',{partial:true}),/正在整理/);assert.match(formatModelOutput('{"answer":'),/无法解析/);assert.ok(!formatModelOutput('{"answer":').includes('{"answer"'));});
+test('资料里的折叠参考答案正常渲染，其他内容仍安全转义',async()=>{
+ const docs=JSON.parse(await readFile(new URL('../dist/content.json',import.meta.url),'utf8'));
+ let blocks=0;
+ for(const doc of docs){
+  const count=(doc.text.match(/<details>/g)||[]).length;
+  if(!count)continue;
+  const html=renderMarkdown(doc.text,{allowDetails:true});
+  assert.equal((html.match(/<details class="source-details">/g)||[]).length,count,doc.title);
+  assert.equal((html.match(/<summary>/g)||[]).length,count,doc.title);
+  assert.ok(!html.includes('&lt;details&gt;')&&!html.includes('&lt;summary&gt;'),doc.title);
+  blocks+=count;
+ }
+ assert.equal(blocks,18);
+ const sample='<details><summary><img src=x onerror=alert(1)> **参考答案**</summary>\n\n1. **A**\n\n<script>alert(1)</script>\n</details>';
+ const rendered=renderMarkdown(sample,{allowDetails:true});
+ assert.ok(rendered.includes('<details class="source-details"><summary>&lt;img src=x onerror=alert(1)&gt; <strong>参考答案</strong></summary>'));
+ assert.ok(rendered.includes('<ol><li><strong>A</strong></li></ol>'));
+ assert.ok(rendered.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
+ assert.ok(!rendered.includes('<img')&&!rendered.includes('<script>'));
+ assert.ok(renderMarkdown(sample).includes('&lt;details&gt;'));
+ assert.ok(renderMarkdown('<details onclick="alert(1)"><summary>坏</summary>',{allowDetails:true}).includes('&lt;details onclick='));
+});
 test('资料目录只收录正文实际标题，代码注释不占目录位置',async()=>{
  const docs=JSON.parse(await readFile(new URL('../dist/content.json',import.meta.url),'utf8'));
  for(const doc of docs){
