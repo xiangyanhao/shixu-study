@@ -7,6 +7,9 @@
 .reader .markdown table{font-size:13px;line-height:1.8}
 .toc h3{font-size:14px}
 .toc a{font-size:12px}
+.toc .toc-link{padding-left:calc(8px + var(--toc-indent));padding-right:6px;border-left:2px solid #e5ebdd;overflow-wrap:anywhere}
+.toc .toc-link.toc-root{font-weight:650;color:#405c48;border-left-color:#93aa7e}
+.toc .toc-link:hover,.toc .toc-link:focus-visible{color:var(--green);background:#f2f6ec;border-left-color:var(--green)}
 
 @media(max-width:680px){
   .reader .markdown{font-size:14px}

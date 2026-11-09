@@ -36,3 +36,19 @@ test('代码内不误解析Markdown，模型HTML和危险链接不能执行',()=
 });
 test('模型JSON转换为可读Markdown，不向用户展示裸对象',()=>{const formatted=formatModelOutput('{"summary":"样本较少","weaknesses":["学习心理","教学评价"],"next_steps":[{"action":"完成专项练习","priority":"高"}]}');assert.ok(formatted.includes('总结'));assert.ok(formatted.includes('薄弱环节'));assert.ok(formatted.includes('下一步行动'));assert.ok(!formatted.includes('{"'));const html=renderMarkdown(formatted);assert.ok(html.includes('<h2'));assert.ok(html.includes('<li>'));});
 test('未完成或损坏的模型JSON显示友好状态而非原文',()=>{assert.match(formatModelOutput('{"answer":',{partial:true}),/正在整理/);assert.match(formatModelOutput('{"answer":'),/无法解析/);assert.ok(!formatModelOutput('{"answer":').includes('{"answer"'));});
+test('资料目录只收录正文实际标题，代码注释不占目录位置',async()=>{
+ const docs=JSON.parse(await readFile(new URL('../dist/content.json',import.meta.url),'utf8'));
+ for(const doc of docs){
+  const headings=[];
+  const html=renderMarkdown(doc.displayText||doc.text,{onHeading:heading=>headings.push(heading)});
+  const renderedIds=[...html.matchAll(/<h[1-4] id="(heading-\d+)">/g)].map(match=>match[1]);
+  assert.deepEqual(headings.map(heading=>heading.id),renderedIds,doc.title);
+ }
+ const book=docs.find(doc=>(doc.displayText||doc.text).includes('第三章　学科知识：AI 背景的“降维”与“补缺”'));
+ assert.ok(book);
+ const headings=[];
+ renderMarkdown(book.displayText||book.text,{onHeading:heading=>headings.push(heading)});
+ assert.ok(headings.some(heading=>heading.title.includes('第三章　学科知识')));
+ assert.ok(headings.some(heading=>heading.title==='Python 高频语法'));
+ assert.ok(!headings.some(heading=>heading.title==='输入输出'||heading.title==='分支'));
+});

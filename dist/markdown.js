@@ -65,7 +65,7 @@ export function renderMarkdown(text,options={}){
   }
   if(lists.length&&/^\s+\S/.test(line)){out+='<br>'+fmt(line.trim());continue;}closeLists();
   const heading=line.match(/^(#{1,6})\s+(.+)/);
-  if(heading){closeParagraph();const level=Math.min(4,heading[1].length);out+=`<h${level} id="${escapeHTML(options.headingPrefix||'heading')}-${++headingIndex}">${fmt(heading[2].replace(/\s*\{.*?\}/g,''))}</h${level}>`;continue;}
+  if(heading){closeParagraph();const level=Math.min(4,heading[1].length),id=`${options.headingPrefix||'heading'}-${++headingIndex}`,title=heading[2].replace(/\s*\{.*?\}/g,'');options.onHeading?.({id,level:heading[1].length,title});out+=`<h${level} id="${escapeHTML(id)}">${fmt(title)}</h${level}>`;continue;}
   if(/^\s*:::/.test(line))continue;
   if(/^\s*(?:---|\*\*\*|___)\s*$/.test(line)){closeParagraph();out+='<div class="rule"></div>';continue;}
   paragraph.push(line);
